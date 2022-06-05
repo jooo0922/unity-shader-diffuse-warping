@@ -3,7 +3,8 @@ Shader "Custom/warp"
     Properties
     {
         _MainTex ("Albedo (RGB)", 2D) = "white" {}
-        _RampTex ("RampTex", 2D) = "white" {}
+        _BumpMap ("NormalMap", 2D) = "bump" {} // 노말맵을 받는 인터페이스 추가
+        _RampTex ("RampTex", 2D) = "white" {} // ramp 맵을 받는 인터페이스 추가
     }
     SubShader
     {
@@ -15,17 +16,22 @@ Shader "Custom/warp"
         #pragma surface surf warp noambient // 환경광 제거
 
         sampler2D _MainTex;
+        sampler2D _BumpMap;
         sampler2D _RampTex; // Diffuse Warping (Ramp Texture 라고도 부름)을 구현하기 위해 필요한 텍스쳐를 인터페이스에서 받아서 담을 변수
 
         struct Input
         {
             float2 uv_MainTex;
+            float2 uv_BumpMap;
         };
 
         void surf (Input IN, inout SurfaceOutput o)
         {
             fixed4 c = tex2D (_MainTex, IN.uv_MainTex);
             o.Albedo = c.rgb;
+
+            // UnpackNormal() 함수는 변환된 노말맵 텍스쳐 형식인 DXTnm 에서 샘플링해온 텍셀값 float4를 인자로 받아 float3 를 리턴해줌. -> 노말맵에서 추출한 노멀벡터 적용
+            o.Normal = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap));
             o.Alpha = c.a;
         }
 
@@ -62,7 +68,11 @@ Shader "Custom/warp"
             ndotl = ndotl * 0.5 + 0.5;
             float4 ramp = tex2D(_RampTex, float2(ndotl, 0.5));
 
-            return ramp;
+            float4 final; // 최종 색상값을 담을 변수
+            final.rgb = s.Albedo.rgb * ramp.rgb; // surf 에서 적용한 Albedo 맵의 색상과 ramp 맵에서 샘플링한 텍셀값을 곱해서 적용
+            final.a = s.Alpha;
+
+            return final;
         }
         ENDCG
     }
