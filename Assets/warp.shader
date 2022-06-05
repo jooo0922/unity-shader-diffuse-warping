@@ -36,7 +36,7 @@ Shader "Custom/warp"
         }
 
         // Diffuse Warping 기법을 구현하기 위한 커스텀라이팅 함수
-        float4 Lightingwarp(SurfaceOutput s, float3 lightDir, float atten) {
+        float4 Lightingwarp(SurfaceOutput s, float3 lightDir, float3 viewDir, float atten) {
             float ndotl = dot(s.Normal, lightDir); // surf 함수에서 넘겨받은 노멀벡터와 조명벡터를 내적함.
 
             // 이번에는 ramp 텍스쳐 샘플링을 커스텀라이팅 함수에서 해줌.
@@ -66,10 +66,15 @@ Shader "Custom/warp"
                 Diffuse Warping 이라고 함!
             */
             ndotl = ndotl * 0.5 + 0.5;
-            float4 ramp = tex2D(_RampTex, float2(ndotl, 0.5));
+
+            // ramp 텍스쳐 샘플링의 uv좌표값 중, y컴포넌트인 0.5에 speculcar 값을 계산해서 넣어보는 식으로 응용할 수도 있음. -> 새로운 ramp 텍스쳐인 ramp_spec.jpg 를 사용할 것!
+            float3 H = normalize(lightDir + viewDir); // 스펙큘러값을 구하기 위해 조명벡터와 뷰벡터의 중간벡터인 하프벡터를 구함 (두 벡터의 합으로 인해 생긴 벡터는 길이가 1보다 늘어나므로, 다시 1로 정규화해줘야 함.)
+            float spec = saturate(dot(s.Normal, H)); // 노말벡터와 하프벡터를 내적한 뒤, 음수값을 제거하기 위해 saturate 를 사용해서 스펙큘러값을 구함.
+
+            float4 ramp = tex2D(_RampTex, float2(ndotl, spec)); // uv좌표의 y컴포넌트에 spec 값 적용. (단, ramp 텍스쳐는 ramp_spec.jpg 를 사용해야 흰색 스펙큘러로 사용할 텍셀값이 샘플링될 수 있을거임!)
 
             float4 final; // 최종 색상값을 담을 변수
-            final.rgb = s.Albedo.rgb * ramp.rgb; // surf 에서 적용한 Albedo 맵의 색상과 ramp 맵에서 샘플링한 텍셀값을 곱해서 적용
+            final.rgb = s.Albedo.rgb * ramp.rgb + (ramp.rgb * 0.1); // surf 에서 적용한 Albedo 맵의 색상과 ramp 맵에서 샘플링한 텍셀값을 곱해서 적용. + ramp 텍스쳐를 10% 정도 더 강하게 첨가해 줌.
             final.a = s.Alpha;
 
             return final;
